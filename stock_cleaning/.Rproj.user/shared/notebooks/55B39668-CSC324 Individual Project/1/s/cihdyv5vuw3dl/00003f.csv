@@ -1,0 +1,4 @@
+"0","dftest[, ""P/E""] <- as.numeric(as.vector(dftest[, ""P/E""]))
+"
+"2","Error: 'list' object cannot be coerced to type 'double'
+"

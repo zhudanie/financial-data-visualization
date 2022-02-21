@@ -1,0 +1,54 @@
+---
+title: "CSC324 Individual Project"
+author: "Daniel Zhu"
+date: "2/20/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library-setup}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(fs)
+```
+
+
+```{r merge-datasets}
+file_paths <- fs::dir_ls("stock_data")
+file_paths
+
+# Setting up the master file
+composite <- read_excel(file_paths[1])
+
+# Drop information that is not needed (doesn't change day-to-day)
+composite <- composite[-c(3:19, 76, 42:73)] %>% filter(composite$Ticker == "AAPL")
+colnames(composite)[1] <- c("Date")
+
+# Loop through directory to merge all August dates
+for (i in seq_along(file_paths)[-1]) {
+  df1 <- read_excel(file_paths[i]) 
+  df1 <- df1[-c(3:19, 76, 42:73)] %>%
+    filter(df1$Ticker == "AAPL")
+  colnames(df1)[1] <- c("Date")
+  composite <- full_join(composite, df1)
+}
+
+# Set up vector to iterate through
+columns <- colnames(composite)[3:35]
+
+# Iterate through each column to find the difference day-to-day and create a new column
+for (col in columns){
+  composite[, col] <- as.numeric(unlist(composite[, col]))
+  for(row in 2:nrow(composite)){
+      composite[row, paste0(col, "_diff")] <- composite[row, col] - composite[row - 1, col]
+  }
+}
+
+# Save file
+write_csv(composite, "compositeAugust.csv")
+```
+

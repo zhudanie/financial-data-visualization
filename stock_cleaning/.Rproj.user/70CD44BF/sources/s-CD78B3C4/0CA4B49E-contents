@@ -1,0 +1,37 @@
+---
+title: "CSC324 Individual Project"
+author: "Daniel Zhu"
+date: "2/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(fs)
+
+file_paths <- fs::dir_ls("stock_data")
+file_paths
+
+composite <- read_excel(file_paths[1])
+colnames(composite) <- paste(paste("day", 1), colnames(composite), sep = "_")
+names(composite)[names(composite) == paste(paste("day", 1), "Ticker", sep = "_")] <- "Ticker"
+composite <- composite %>% distinct()
+
+for (i in seq_along(file_paths)[-1]) {
+  df1 <- read_excel(file_paths[i])
+  colnames(df1) <- paste(paste("day", i), colnames(df1), sep = "_")
+  names(df1)[names(df1) == paste(paste("day", i), "Ticker", sep = "_")] <- "Ticker"
+  df1 <- df1 %>% distinct()
+  composite <- merge(composite, df1, by = "Ticker")
+}
+
+
+
+```
+

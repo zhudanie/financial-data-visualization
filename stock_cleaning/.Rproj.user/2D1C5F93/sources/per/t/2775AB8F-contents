@@ -1,0 +1,30 @@
+---
+title: "CSC324 Individual Project"
+author: "Daniel Zhu"
+date: "2/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(dplyr)
+df1 <- read_excel("stock_data/Exp-Backup 2021_08_01.xlsx")
+colnames(df1) <- paste("day1", colnames(df1), sep = "_")
+names(df1)[names(df1) == "day1_Ticker"] <- "Ticker"
+view(df1)
+
+
+df2 <- read_excel("stock_data/Exp-Backup 2021_08_02.xlsx")
+colnames(df2) <- paste("day2", colnames(df2), sep = "_")
+
+
+
+
+composite <- merge(df1, df2, by = "")
+```
+
