@@ -14,6 +14,8 @@ library(tidyverse)
 library(readxl)
 library(dplyr)
 library(fs)
+library(readr)
+library(shiny)
 ```
 
 
@@ -51,4 +53,83 @@ for (col in columns){
 # Save file
 write_csv(composite, "compositeAugust.csv")
 ```
+
+```{r complete-regression}
+compositeAugust <- read_csv("compositeAugust_5daylag.csv")
+
+ui <- fluidPage(
+  titlePanel("Regression Model (Dataset: compositeAugust)"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("outcome", label = h3("Outcome"),
+                  choices = list("SMA20" = "SMA20",
+                                 "Price" = "Price",
+                                 "ATR" = "ATR"), selected = 1),
+
+      selectInput("indepvar", label = h3("Explanatory variable"),
+                  choices = list("SMA20_diff" = "SMA20_diff",
+                                 "Price_diff" = "Price_diff",
+                                 "ATR_diff" = "ATR_diff"), selected = 1)
+
+    ),
+
+    mainPanel(
+
+      tabsetPanel(type = "tabs",
+
+tabPanel("Scatterplot", plotOutput("scatterplot")), # Plot
+tabPanel("Distribution", # Plots of distributions
+         fluidRow(
+           column(6, plotOutput("distribution1")),
+           column(6, plotOutput("distribution2")))
+         ),
+tabPanel("Model Summary", verbatimTextOutput("summary")), # Regression output
+tabPanel("Data", DT::dataTableOutput('tbl')) # Data as datatable
+
+      )
+    )
+    ))
+
+
+
+# SERVER
+server <- function(input, output) {
+
+  # Regression output
+  output$summary <- renderPrint({
+    fit <- lm(compositeAugust[,input$outcome] ~ compositeAugust[,input$indepvar])
+    names(fit$coefficients) <- c("Intercept", input$var2)
+    summary(fit)
+  })
+
+  # Data output
+  output$tbl = DT::renderDataTable({
+    DT::datatable(compositeAugust, options = list(lengthChange = FALSE))
+  })
+
+  
+  # Scatterplot output
+  output$scatterplot <- renderPlot({
+    plot(compositeAugust[,input$indepvar], compositeAugust[,input$outcome], main="Scatterplot",
+         xlab=input$indepvar, ylab=input$outcome, pch=19)
+    abline(lm(compositeAugust[,input$outcome] ~ compositeAugust[,input$indepvar]), col="red")
+    lines(lowess(compositeAugust[,input$indepvar],compositeAugust[,input$outcome]), col="blue")
+  }, height=400)
+
+  
+  # Histogram output var 1
+  output$distribution1 <- renderPlot({
+    hist(compositeAugust[,input$outcome], main="", xlab=input$outcome)
+  }, height=300, width=300)
+
+  # Histogram output var 2
+  output$distribution2 <- renderPlot({
+    hist(compositeAugust[,input$indepvar], main="", xlab=input$indepvar)
+  }, height=300, width=300)
+}
+
+shinyApp(ui = ui, server = server)
+
+```
+
 
