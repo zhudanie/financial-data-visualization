@@ -55,7 +55,8 @@ write_csv(composite, "compositeAugust.csv")
 ```
 
 ```{r complete-regression}
-compositeAugust <- read_csv("compositeAugust_5daylag.csv")
+compositeAugust <- as.data.frame(read_csv("compositeAugust_5daylag.csv"))
+compositeAugust$Date <- NULL
 
 ui <- fluidPage(
   titlePanel("Regression Model (Dataset: compositeAugust)"),
@@ -64,10 +65,16 @@ ui <- fluidPage(
       selectInput("outcome", label = h3("Outcome"),
                   choices = list("SMA20" = "SMA20",
                                  "Price" = "Price",
-                                 "ATR" = "ATR"), selected = 1),
+                                 "ATR" = "ATR",
+                                 "SMA20_diff" = "SMA20_diff",
+                                 "Price_diff" = "Price_diff",
+                                 "ATR_diff" = "ATR_diff"), selected = 1),
 
       selectInput("indepvar", label = h3("Explanatory variable"),
-                  choices = list("SMA20_diff" = "SMA20_diff",
+                  choices = list("SMA20" = "SMA20",
+                                 "Price" = "Price",
+                                 "ATR" = "ATR",
+                                 "SMA20_diff" = "SMA20_diff",
                                  "Price_diff" = "Price_diff",
                                  "ATR_diff" = "ATR_diff"), selected = 1)
 
@@ -131,5 +138,6 @@ server <- function(input, output) {
 shinyApp(ui = ui, server = server)
 
 ```
+
 
 
