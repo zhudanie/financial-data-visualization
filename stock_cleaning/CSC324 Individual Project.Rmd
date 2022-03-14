@@ -16,14 +16,29 @@ library(dplyr)
 library(fs)
 library(readr)
 library(shiny)
+library(shinyjs)
+library(rgdal)
+library(rayshader)
+library(knitr)
+library(magrittr)
+library(pxR)
+library(RColorBrewer)
+library(rgeos)
+library(magick)
+options(RGL_USE_NULL = TRUE)
+library(rgl)
+
+#install.packages("devtools")
+#devtools::install_github("tylermorganwall/rayshader")
+
 ```
 
-
-```{r merge-datasets}
+# Set up dataset used for regressions (Apple data only)
+```{r merge-datasets-regression}
 file_paths <- fs::dir_ls("stock_data")
 file_paths
 
-# Setting up the master file
+# Setting up the master file for regression
 composite <- read_excel(file_paths[1])
 
 # Drop information that is not needed (doesn't change day-to-day)
@@ -45,23 +60,130 @@ columns <- colnames(composite)[3:35]
 # Iterate through each column to find the difference day-to-day and create a new column
 for (col in columns){
   composite[, col] <- as.numeric(unlist(composite[, col]))
-  for(row in 2:nrow(composite)){
-      composite[row, paste0(col, "_diff")] <- composite[row, col] - composite[row - 1, col]
+  for(row in 6:nrow(composite)){
+      composite[row, paste0(col, "_diff")] <- composite[row, col] - composite[row - 5, col]
   }
 }
+composite <-composite[!(composite$Date < "2021.08.07"),]
 
 # Save file
 write_csv(composite, "compositeAugust.csv")
 ```
 
+# Set up dataset used for faceted analysis (all companies, days 5-30)
+```{r merge-datasets-facet}
+file_paths <- fs::dir_ls("stock_data")
+file_paths
+
+# Setting up the master file for regression
+composite_total <- read_excel(file_paths[1])
+
+# Drop information that is not needed (doesn't change day-to-day)
+composite_total <- composite_total[-c(3, 5:19, 76, 42:73)] 
+colnames(composite_total)[1] <- c("Date")
+
+# Loop through directory to merge all August dates
+for (i in seq_along(file_paths)[-1]) {
+  df1 <- read_excel(file_paths[i]) 
+  df1 <- df1[-c(3, 5:19, 76, 42:73)] 
+  colnames(df1)[1] <- c("Date")
+  composite_total <- full_join(composite_total, df1)
+}
+
+# Omit rows with NA
+composite_total<-na.omit(composite_total)
+
+# Clean date column
+extract <- composite_total %>% mutate(Date_clean = (str_extract(string = Date, pattern = "[:digit:][:digit:][:digit:][:digit:].[:digit:][:digit:].[:digit:][:digit:]")))
+
+# Set the date column of master dataset to the newly cleaned column
+composite_total[1] = extract[37]
+
+# Order by Ticker and then Date so that we can calculate day-to-day difference
+composite_total <- composite_total[order(composite_total$Ticker, composite_total$Date),]
+
+# Remove duplicate rows
+distinct(composite_total)
+
+# Set up vector to iterate through
+columns <- colnames(composite_total)[4:35]
+
+
+# Iterate through each column to find the difference day-to-day and create a new column
+for (col in columns){
+  composite_total[, col] <- as.numeric(unlist(composite_total[, col]))
+  for(row in 2:nrow(composite_total)){
+    if(composite_total[row, 1] > "2021.08.06"){
+      composite_total[row, paste0(col, "_diff")] <- composite_total[row, col] - composite_total[row - 5, col]
+    }
+  }
+}
+
+# Drop days 1-5 since we don't need them for analysis
+composite_total_test<-composite_total[!(composite_total$Date < "2021.08.06"),]
+
+
+# Save file
+write_csv(composite_total_test, "composite_total2.csv")
+
+```
+
+# Set up dataset for income statement analysis (all companies, only day 1 since income statements do not change day-to-day, only quarter-by-quarter)
+```{r merge-financial-data}
+file_paths <- fs::dir_ls("stock_data")
+file_paths
+
+# Setting up the master file for regression
+income_statements <- read_excel(file_paths[1])
+
+# Relabel date column
+colnames(income_statements)[1] <- c("Date")
+income_statements <- income_statements[-c(7, 8, 17, 18, 19, 33:42, 44:47, 54, 56:77, 79)] 
+
+
+# Loop through directory to merge all August dates
+for (i in seq_along(file_paths)[-1]) {
+  df1 <- read_excel(file_paths[i])
+  df1 <- df1[-c(7, 8, 17, 18, 19, 33:42, 44:47, 54, 56:77, 79)]
+  colnames(df1)[1] <- c("Date")
+  income_statements <- full_join(income_statements, df1)
+}
+
+# Clean date column
+extract <- income_statements %>% mutate(Date_clean = (str_extract(string = Date, pattern = "[:digit:][:digit:][:digit:][:digit:].[:digit:][:digit:].[:digit:][:digit:]")))
+
+# Set the date column of master dataset to the newly cleaned column
+income_statements[1] = extract[43]
+
+# Convert characters to numeric
+columns <- colnames(income_statements)[7:42]
+for (col in columns){
+  income_statements[, col] <- as.numeric(unlist(income_statements[, col]))
+}
+  
+# Take only the first day since these observations don't change day-to-day
+income_statements <- income_statements[!(income_statements$Date != "2021.08.01"),]
+
+# Save file
+write_csv(income_statements, "income_statements.csv")
+```
+
+
+# Run regressions and app
 ```{r complete-regression}
-compositeAugust <- as.data.frame(read_csv("compositeAugust_5daylag.csv"))
+compositeAugust <- as.data.frame(read_csv("compositeAugust.csv"))
 compositeAugust$Date <- NULL
+composite_total2 <- as.data.frame(read_csv("composite_total2.csv"))
+composite_total2 <- subset(composite_total2, Price_diff > -500 & Price_diff < 500 & Price < 1000) 
+income_statements <- as.data.frame(read_csv("income_statements.csv"))
+
 
 ui <- fluidPage(
-  titlePanel("Regression Model (Dataset: compositeAugust)"),
+  useShinyjs(), 
+  titlePanel("Regression Model and Financial Analysis"),
   sidebarLayout(
     sidebarPanel(
+      id="sidebar",
       selectInput("outcome", label = h3("Outcome"),
                   choices = list("SMA20" = "SMA20",
                                  "Price" = "Price",
@@ -84,24 +206,47 @@ ui <- fluidPage(
 
       tabsetPanel(type = "tabs",
 
-tabPanel("Scatterplot", plotOutput("scatterplot")), # Plot
-tabPanel("Distribution", # Plots of distributions
-         fluidRow(
-           column(6, plotOutput("distribution1")),
-           column(6, plotOutput("distribution2")))
-         ),
-tabPanel("Model Summary", verbatimTextOutput("summary")), # Regression output
-tabPanel("Data", DT::dataTableOutput('tbl')) # Data as datatable
-
-      )
+      tabPanel("Scatterplot", plotOutput("scatterplot")), # Plot
+      tabPanel("Distribution", # Plots of distributions
+               fluidRow(
+                 column(6, plotOutput("distribution1")),
+                 column(6, plotOutput("distribution2")))
+               ), # Distributions
+      tabPanel("Industry Visualizations", plotOutput("facetedplot")), # Industry facet
+      tabPanel("Financial Visualizations", 
+               br(),
+               br(),
+               plotOutput("income_financials"), 
+               br(),
+               br(),
+               br(),
+               br(),    
+               plotOutput("esg_profitmargin")), # Financial data plots
+      tabPanel("3D Heat Map", rglwidgetOutput("threed_plot",  width = 800, height = 600)),
+      tabPanel("Model Summary", verbatimTextOutput("summary")), # Regression output
+      tabPanel("Data", DT::dataTableOutput('tbl')), # Data as datatable
+      id = "tabset"
+      ),
+      id = "main"
     )
-    ))
+  ))
 
 
 
 # SERVER
 server <- function(input, output) {
-
+  
+  observeEvent(input[["tabset"]], {
+    if(input[["tabset"]] == "Financial Visualizations" | input[["tabset"]] == "3D Heat Map"){
+      hideElement(selector = "#sidebar")
+      removeCssClass("main", "col-sm-8")
+      addCssClass("main", "col-sm-12")
+    }else{
+      showElement(selector = "#sidebar")
+      removeCssClass("main", "col-sm-12")
+      addCssClass("main", "col-sm-8")
+    }})
+  
   # Regression output
   output$summary <- renderPrint({
     fit <- lm(compositeAugust[,input$outcome] ~ compositeAugust[,input$indepvar])
@@ -123,6 +268,43 @@ server <- function(input, output) {
     lines(lowess(compositeAugust[,input$indepvar],compositeAugust[,input$outcome]), col="blue")
   }, height=400)
 
+  # Industry visualization output
+  output$facetedplot <- renderPlot({
+    ggplot(composite_total2, aes(composite_total2[,input$indepvar], composite_total2[,input$outcome])) + geom_hex() + facet_wrap(~ Sector, ncol=4) + labs(y = input$outcome, x = input$indepvar)}, res = 96)
+  
+  # Financial data output
+  output$income_financials <- renderPlot({
+    ggplot(income_statements, aes(x=Income, y=Sector)) + 
+      geom_dotplot(binaxis='y', stackdir='center', stackratio=1.5, dotsize=.04) + 
+      scale_x_continuous(breaks=seq(0,100000000000,10000000000)) + 
+      labs(x="Income (USD)") +
+      theme_minimal() +
+      ggtitle("Plot of Income by Sector") +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  })
+  output$esg_profitmargin <- renderPlot({
+    ggplot(income_statements, aes(x=`ESG Totalesg`, y=`Profit Margin`, color=Sector)) + 
+      geom_point(shape = 16, size = 4, alpha = .4) +
+      labs(x="ESG Score")+
+      theme_minimal() +
+      ggtitle("Plot of Profit Margin by ESG Score") +
+      theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  })
+  
+  industry_facet <- reactive({
+      ggplot(composite_total2) +
+      stat_density_2d(aes(x = composite_total2[,"Price_diff"], y = composite_total2[,"Price"],
+    fill = stat(nlevel)), geom = "polygon", n = 200, bins = 50,contour = TRUE) +
+      facet_wrap(Sector~.) + scale_fill_viridis_c(option = "A") +
+      labs(x="Price Difference", y="Price")
+    })
+
+  # 3D data output
+  output$threed_plot <- renderRglwidget({
+    plot_gg(industry_facet(), width = 7, height = 7, multicore = TRUE, scale = 250,
+        zoom = 0.7, theta = 10, phi = 30)
+      rglwidget()
+  })
   
   # Histogram output var 1
   output$distribution1 <- renderPlot({
@@ -137,7 +319,31 @@ server <- function(input, output) {
 
 shinyApp(ui = ui, server = server)
 
+
 ```
+
+
+<!-- ```{r} -->
+<!-- composite_total2 <- as.data.frame(read_csv("composite_total2.csv")) -->
+<!-- composite_total2 <- subset(composite_total2, Price_diff > -500 & Price_diff < 500 & Price < 1000) -->
+
+<!-- plotoutput <- ggplot(composite_total2, aes(composite_total2[,"Price_diff"], -->
+<!--                                            composite_total2[,"Price"])) + -->
+<!--    geom_hex() + facet_wrap(~ Sector, ncol=4) + labs(y = "Price", x = "Price_diff") -->
+
+<!-- plot_gg(plotoutput,multicore=TRUE,width=5,height=3,scale=310) -->
+<!-- render_snapshot(filename = "3D_spain") -->
+
+<!-- industry_facet = ggplot(composite_total2) + -->
+<!--   stat_density_2d(aes(x = composite_total2[,"Price_diff"], y = composite_total2[,"Price"], fill = stat(nlevel)), -->
+<!--                   geom = "polygon", n = 200, bins = 50,contour = TRUE) + -->
+<!--   facet_wrap(Sector~.) + -->
+<!--   scale_fill_viridis_c(option = "A") -->
+
+
+
+
+<!-- ``` -->
 
 
 
