@@ -25,8 +25,13 @@ library(pxR)
 library(RColorBrewer)
 library(rgeos)
 library(magick)
+<<<<<<< HEAD
 options(RGL_USE_NULL = TRUE)
 library(rgl)
+=======
+library(rgl)
+options(RGL_USE_NULL = TRUE)
+>>>>>>> e0fbe0dcf34c6a351497429bc610aa7aa26fdf02
 
 #install.packages("devtools")
 #devtools::install_github("tylermorganwall/rayshader")
@@ -180,7 +185,11 @@ income_statements <- as.data.frame(read_csv("income_statements.csv"))
 
 ui <- fluidPage(
   useShinyjs(), 
+<<<<<<< HEAD
   titlePanel("Regression Model and Financial Analysis"),
+=======
+  titlePanel("Regression Model (Dataset: compositeAugust)"),
+>>>>>>> e0fbe0dcf34c6a351497429bc610aa7aa26fdf02
   sidebarLayout(
     sidebarPanel(
       id="sidebar",
@@ -270,7 +279,11 @@ server <- function(input, output) {
 
   # Industry visualization output
   output$facetedplot <- renderPlot({
+<<<<<<< HEAD
     ggplot(composite_total2, aes(composite_total2[,input$indepvar], composite_total2[,input$outcome])) + geom_hex() + facet_wrap(~ Sector, ncol=4) + labs(y = input$outcome, x = input$indepvar)}, res = 96)
+=======
+    ggplot(composite_total2, aes(composite_total2[,input$indepvar], composite_total2[,input$outcome])) + geom_point() + facet_wrap(~ Sector, ncol=4) + labs(y = input$outcome, x = input$indepvar)}, res = 96)
+>>>>>>> e0fbe0dcf34c6a351497429bc610aa7aa26fdf02
   
   # Financial data output
   output$income_financials <- renderPlot({
@@ -299,12 +312,22 @@ server <- function(input, output) {
       labs(x="Price Difference", y="Price")
     })
 
+<<<<<<< HEAD
   # 3D data output
   output$threed_plot <- renderRglwidget({
     plot_gg(industry_facet(), width = 7, height = 7, multicore = TRUE, scale = 250,
         zoom = 0.7, theta = 10, phi = 30)
       rglwidget()
   })
+=======
+  output$threed_plot <- renderRglwidget({
+    plot_gg(industry_facet(), width = 6.5, height = 6.5, multicore = TRUE, scale = 250,
+        zoom = 0.7, theta = 10, phi = 30)
+      rglwidget()
+  })
+    
+ 
+>>>>>>> e0fbe0dcf34c6a351497429bc610aa7aa26fdf02
   
   # Histogram output var 1
   output$distribution1 <- renderPlot({
